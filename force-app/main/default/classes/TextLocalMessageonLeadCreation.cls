@@ -6,11 +6,15 @@ public class TextLocalMessageonLeadCreation {
         map<string,map<string,String>> expectedValuebyCriteria = new map<string,map<string,String>>();
         map<string,Decimal> allotedMarksbySequence = new Map<String,Decimal>();
         map<string,String> criteriaNameById = new Map<String,String>();
-        
+        map<string,String> fieldByMatchingType = new Map<String,String>();
+        map<string,String> fieldByFieldType = new Map<String,String>();
+        map<string,String> leadValueForFields = new Map<String,String>();
         for(Execution_Criteria__c scr:AvailableCriterias){
             map<string,string> fieldNameByMatching = new Map<String,string>();
             for(Execution_Criteria_Entry__c exe:scr.Execution_Criteria_Entry__R){
                 fieldNameByMatching.put(exe.Field_Name__c,exe.Matching_Value__c);
+                fieldByMatchingType.put(exe.Field_Name__c,exe.Matching_Type__c);
+                fieldByFieldType.put(exe.Field_Name__c,exe.Field_Type__c);
             }
             expectedValuebyCriteria.put(scr.Name,fieldNameByMatching);
             criteriaNameById.put(scr.Name,scr.Id);
@@ -19,19 +23,63 @@ public class TextLocalMessageonLeadCreation {
             for(String criteriaName : expectedValuebyCriteria.keyset()){
                 integer matchedValues = 0;
                 for(String field:expectedValuebyCriteria.get(criteriaName).Keyset())  {
-                    if(expectedValuebyCriteria.get(criteriaName).get(field).contains(',')){
-                        List<String> commaSeparatedValues = expectedValuebyCriteria.get(criteriaName).get(field).split(',');
-                        for(String Str:commaSeparatedValues){
-                            if(Str == String.valueOf(ld.get(field))){
+                    if(fieldByFieldType.get(field) == 'Date'){
+                        if(fieldByMatchingType.get(field) == '<' || fieldByMatchingType.get(field) == '<='){
+                            if(date.valueOf(expectedValuebyCriteria.get(criteriaName).get(field)) <= date.valueOf(ld.get(field))){
                                 matchedValues++;
-                            } 
+                            }  
+                        }else if(fieldByMatchingType.get(field) == '>' || fieldByMatchingType.get(field) == '>='){
+                            if(date.valueOf(expectedValuebyCriteria.get(criteriaName).get(field)) >= date.valueOf(ld.get(field))){
+                                matchedValues++;
+                            }  
+                        }else{
+                            if(date.valueOf(expectedValuebyCriteria.get(criteriaName).get(field)) == date.valueOf(ld.get(field))){
+                                matchedValues++;
+                            }  
+                        }   
+                    }else if(fieldByFieldType.get(field) == 'Number'){
+                        if(fieldByMatchingType.get(field) == '<' || fieldByMatchingType.get(field) == '<='){
+                            if(Integer.valueOf(expectedValuebyCriteria.get(criteriaName).get(field)) <= Integer.valueOf(ld.get(field))){
+                                matchedValues++;
+                            }  
+                        }else if(fieldByMatchingType.get(field) == '>' || fieldByMatchingType.get(field) == '>='){
+                            if(Integer.valueOf(expectedValuebyCriteria.get(criteriaName).get(field)) >= Integer.valueOf(ld.get(field))){
+                                matchedValues++;
+                            }  
+                        }else{
+                            if(Integer.valueOf(expectedValuebyCriteria.get(criteriaName).get(field)) == Integer.valueOf(ld.get(field))){
+                                matchedValues++;
+                            }  
                         }
                     }else{
-                        if(expectedValuebyCriteria.get(criteriaName).get(field) == String.valueOf(ld.get(field))){
-                            matchedValues++;
-                        }   
+                        if(fieldByMatchingType.get(field) == '=='){
+                            if(expectedValuebyCriteria.get(criteriaName).get(field).contains(',')){
+                                List<String> commaSeparatedValues = expectedValuebyCriteria.get(criteriaName).get(field).split(',');
+                                for(String Str:commaSeparatedValues){
+                                    if(Str == String.valueOf(ld.get(field))){
+                                        matchedValues++;
+                                    } 
+                                }
+                            }else{
+                                if(expectedValuebyCriteria.get(criteriaName).get(field) == String.valueOf(ld.get(field))){
+                                    matchedValues++;
+                                }   
+                            }    
+                        }else if(fieldByMatchingType.get(field) == '!='){
+                            if(expectedValuebyCriteria.get(criteriaName).get(field) != String.valueOf(ld.get(field))){
+                                matchedValues++;
+                            }  
+                        }else if(fieldByMatchingType.get(field) == 'CONTAINS'){
+                            system.debug('Coming heree..?'+expectedValuebyCriteria.get(criteriaName).get(field)+'--'+String.valueOf(ld.get(field)));
+                            if((String.valueOf(ld.get(field)).contains(expectedValuebyCriteria.get(criteriaName).get(field)))){
+                                matchedValues++;
+                            }  
+                        }else if(fieldByMatchingType.get(field) == 'DOES NOT CONTAIN'){
+                            if(!expectedValuebyCriteria.get(criteriaName).get(field).contains(String.valueOf(ld.get(field)))){
+                                matchedValues++;
+                            }  
+                        }
                     }
-                    
                 }
                 allotedMarksbySequence.put(criteriaName,matchedValues);
             }
@@ -48,31 +96,73 @@ public class TextLocalMessageonLeadCreation {
         List<Decimal> i_values = allotedMarksbySequence.values();
         i_values.sort();
         
-        //get the max value of the count
         Decimal i_max_value = i_values[(i_values.size()-1)];
         String ExecutionCriteriaName = '';
         for(String s : allotedMarksbySequence.keySet()){
             Decimal oppty_map_value = allotedMarksbySequence.get(s);
-            
             if(oppty_map_value == i_max_value){
-                ExecutionCriteriaName =  s;//System.debug(' Id is ' + s + ' value is ' + oppty_map_value);
+                ExecutionCriteriaName =  s;
             }
         }
         system.debug('Selected ExecutionCriteriaName'+ExecutionCriteriaName);
-        String LeadAssId = criteriaNameById.get(ExecutionCriteriaName);
-        List<Assignment_Group__c> AssGroupList = [SELECT Id,Name,Max_Lead_Per_Day__c FROM Assignment_Group__c where Lead_Assigning_Criteria__c =:LeadAssId ORDER BY Max_Lead_Per_Day__c DESC NULLS LAST ];
-        
-        //system.debug('AssGroupList[0].Id '+AssGroupList[0].Id );
-        if(AssGroupList.size() > 0){
-            List<Assignment_Group_Member__c> groupMembers = [SELECT Group_Member__c,Id,Max_Lead_Per_Day__c,Name FROM Assignment_Group_Member__c where Active__c = true and Assignment_Group__c = :AssGroupList[0].Id ORDER BY Max_Lead_Per_Day__c DESC NULLS LAST];
-            Lead ld = new lead(Id = LeadId,Owner__c  = groupMembers[0].Group_Member__c);
-            LeadsTobeUpdated.add(ld);
-            //update ld;
+        String leadAssCriteriaId = criteriaNameById.get(ExecutionCriteriaName);
+        List<Assignment_Group__c> AssGroupList = [SELECT Id,Total_Lead_Count_of_Members__c,Name,Max_Lead_Per_Day__c,Minimum_Lead_Volume__c,Lead_Stage_Exceed_Count__c FROM Assignment_Group__c where Lead_Assigning_Criteria__c =:leadAssCriteriaId ORDER BY Max_Lead_Per_Day__c DESC NULLS LAST ];
+        map<String,Decimal> groupIdByTotalCapacity = new map<String,Decimal>();
+        system.debug('AssGroupList'+AssGroupList);
+        if(AssGroupList.size() > 1){
+            for(Assignment_Group__c assGr : AssGroupList){
+                groupIdByTotalCapacity.put(assGr.Id,assGr.Total_Lead_Count_of_Members__c);
+            }
+            system.debug('groupIdByTotalCapacity'+groupIdByTotalCapacity);
+            List<Decimal> count_values = groupIdByTotalCapacity.values();
+            count_values.sort();
+            
+            Decimal max_value = count_values[(count_values.size()-1)];
+            String ExecutionCriteriawithHighestCap = '';
+            for(String s : groupIdByTotalCapacity.keySet()){
+                Decimal map_value = groupIdByTotalCapacity.get(s);
+                if(map_value == max_value){
+                    ExecutionCriteriawithHighestCap =  s;
+                }
+            }
+            system.debug('ExecutionCriteriawithHighestCap'+ExecutionCriteriawithHighestCap);
+            List<Assignment_Group_Member__c> groupMembers = [SELECT Group_Member__c,Id,Max_Lead_Per_Day__c,Name FROM Assignment_Group_Member__c where Active__c = true and Assignment_Group__c = :ExecutionCriteriawithHighestCap ORDER BY Max_Lead_Per_Day__c DESC NULLS LAST];
+            if(groupMembers.size() > 0){
+                
+                map<String,Decimal> groupMemberIdByTotalCapacity = new map<String,Decimal>();
+                for(Assignment_Group_Member__c assGrMem : groupMembers){
+                    groupMemberIdByTotalCapacity.put(assGrMem.Id,assGrMem.Max_Lead_Per_Day__c);
+                }
+                system.debug('groupMemberIdByTotalCapacity'+groupMemberIdByTotalCapacity);
+                List<Decimal> values = groupMemberIdByTotalCapacity.values();
+                values.sort();
+                
+                Decimal maxm_value = values[(values.size()-1)];
+                String groupMemberwithHighestCap = '';
+                for(String s : groupMemberIdByTotalCapacity.keySet()){
+                    Decimal map_val = groupMemberIdByTotalCapacity.get(s);
+                    if(map_val == maxm_value){
+                        groupMemberwithHighestCap =  s;
+                    }
+                }
+                system.debug('groupMemberwithHighestCap'+groupMemberwithHighestCap);
+                Lead ld = new lead(Id = LeadId,OwnerId  = groupMemberwithHighestCap);
+                LeadsTobeUpdated.add(ld);
+            }
+            update LeadsTobeUpdated;
             return AssGroupList[0].Name; 
         }else{
-            return AssGroupList[0].Name;    
+            List<Assignment_Group_Member__c> groupMembers = [SELECT Group_Member__c,Id,Max_Lead_Per_Day__c,Name FROM Assignment_Group_Member__c where Active__c = true and Assignment_Group__c = :AssGroupList[0].Id ORDER BY Max_Lead_Per_Day__c DESC NULLS LAST];
+            if(groupMembers.size() > 0){
+                Lead ld = new lead(Id = LeadId,OwnerId  = groupMembers[0].Group_Member__c);
+                LeadsTobeUpdated.add(ld);
+            }
+             update LeadsTobeUpdated;
+            return AssGroupList[0].Name; 
         }
+       
     }
+    
     
     // @InvocableMethod(label='Text Local Message up on Lead Creation' )
     //  public static void leadInsert(List<string> newLeads){

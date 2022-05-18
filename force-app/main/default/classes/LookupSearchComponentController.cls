@@ -84,7 +84,7 @@ public class LookupSearchComponentController {
                             totalScore = totalScore+allotedMarksbyCriteria.get(fieldval);
                         }  
                     }else if(fieldByMatchingType.get(fieldval) == 'CONTAINS'){
-                        if(expectedValuebyCriteria.get(fieldval).contains(String.valueOf(ld.get(fieldval)))){
+                        if(String.valueOf(ld.get(fieldval)).contains(expectedValuebyCriteria.get(fieldval))){
                             totalScore = totalScore+allotedMarksbyCriteria.get(fieldval);
                         }  
                     }else if(fieldByMatchingType.get(fieldval) == 'DOES NOT CONTAIN'){
